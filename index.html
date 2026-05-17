@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeSnap — Beautiful Code Screenshots</title>
+<meta name="description" content="Turn your code into beautiful screenshots. Paste code, pick a theme, export as PNG. Like Carbon but simpler, faster, and works offline. Free.">
+<meta name="keywords" content="code screenshot, carbon alternative, code image, beautiful code, developer tool, code to image">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://codesnap-tool.surge.sh/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="CodeSnap — Beautiful Code Screenshots">
+<meta property="og:description" content="Turn code into beautiful shareable screenshots. Free, instant, works offline.">
+<meta property="og:url" content="https://codesnap-tool.surge.sh/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="CodeSnap — Beautiful Code Screenshots">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"CodeSnap","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Turn code into beautiful shareable screenshots."}</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;display:flex;flex-direction:column}
+header{padding:16px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #21262d;background:#161b22}
+header h1{font-size:18px;font-weight:800}header h1 span{color:#f0883e}
+.toolbar{padding:10px 16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:#161b22;border-bottom:1px solid #21262d}
+.toolbar label{font-size:11px;color:#8b949e;margin-right:2px}
+.toolbar select,.toolbar input[type=text]{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:5px 8px;border-radius:6px;font-size:12px;font-family:inherit}
+.toolbar select{min-width:100px}
+.toolbar input[type=text]{width:120px}
+.tb{padding:5px 12px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600}
+.tb:hover{background:#30363d}
+.tb-primary{background:#238636;border-color:#2ea043;color:#fff}
+.tb-primary:hover{background:#2ea043}
+.editor-wrap{flex:1;display:flex;overflow:hidden}
+textarea{flex:1;background:#0d1117;color:#c9d1d9;border:none;padding:16px;font-family:'SF Mono',SFMono-Regular,Consolas,'Courier New',monospace;font-size:13px;line-height:1.6;resize:none;outline:none;tab-size:2}
+textarea::placeholder{color:#484f58}
+.preview-side{width:420px;border-left:1px solid #21262d;background:#161b22;display:flex;flex-direction:column;overflow:auto}
+.preview-header{padding:8px 12px;font-size:11px;color:#8b949e;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center}
+.canvas-container{flex:1;display:flex;align-items:center;justify-content:center;padding:16px}
+canvas{border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.4);max-width:100%;height:auto}
+@media(max-width:900px){
+  .editor-wrap{flex-direction:column}
+  .preview-side{width:100%;border-left:none;border-top:1px solid #21262d;max-height:50vh}
+  textarea{min-height:200px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Code<span>Snap</span></h1>
+</header>
+<div class="toolbar">
+  <label>Lang:</label>
+  <select id="selLang">
+    <option value="js">JavaScript</option><option value="ts">TypeScript</option>
+    <option value="python">Python</option><option value="go">Go</option>
+    <option value="rust">Rust</option><option value="java">Java</option>
+    <option value="html">HTML</option><option value="css">CSS</option>
+    <option value="sql">SQL</option><option value="shell">Shell</option>
+    <option value="json">JSON</option><option value="plain">Plain</option>
+  </select>
+  <label>Theme:</label>
+  <select id="selTheme">
+    <option value="monokai">Monokai</option><option value="github">GitHub Dark</option>
+    <option value="dracula">Dracula</option><option value="solarized">Solarized</option>
+    <option value="nord">Nord</option><option value="one">One Dark</option>
+  </select>
+  <label>BG:</label>
+  <select id="selBg">
+    <option value="gradient1">Gradient 1</option><option value="gradient2">Sunset</option>
+    <option value="gradient3">Ocean</option><option value="gradient4">Forest</option>
+    <option value="solid1">Dark</option><option value="solid2">Midnight</option>
+  </select>
+  <label>Pad:</label>
+  <select id="selPad">
+    <option value="32">S</option><option value="48" selected>M</option><option value="64">L</option><option value="80">XL</option>
+  </select>
+  <input type="text" id="txtTitle" placeholder="Window title (optional)">
+  <button class="tb" id="btnSample">Sample</button>
+  <button class="tb tb-primary" id="btnExport">Export PNG</button>
+</div>
+<div class="editor-wrap">
+  <textarea id="editor" placeholder="Paste your code here...
+
+Tip: Choose a language for syntax highlighting, pick a theme, and export as PNG.
+
+Works completely offline. No data uploaded." spellcheck="false"></textarea>
+  <div class="preview-side">
+    <div class="preview-header"><span>Preview</span><span id="lineCount">0 lines</span></div>
+    <div class="canvas-container"><canvas id="snap"></canvas></div>
+  </div>
+</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+
+const THEMES={
+  monokai:{bg:'#272822',text:'#f8f8f2',kw:'#f92672',str:'#e6db74',num:'#ae81ff',cm:'#75715e',fn:'#a6e22e',op:'#f92672',type:'#66d9ef',tag:'#f92672',attr:'#a6e22e',punct:'#f8f8f2'},
+  github:{bg:'#0d1117',text:'#c9d1d9',kw:'#ff7b72',str:'#a5d6ff',num:'#79c0ff',cm:'#8b949e',fn:'#d2a8ff',op:'#ff7b72',type:'#79c0ff',tag:'#7ee787',attr:'#d2a8ff',punct:'#c9d1d9'},
+  dracula:{bg:'#282a36',text:'#f8f8f2',kw:'#ff79c6',str:'#f1fa8c',num:'#bd93f9',cm:'#6272a4',fn:'#50fa7b',op:'#ff79c6',type:'#8be9fd',tag:'#ff79c6',attr:'#50fa7b',punct:'#f8f8f2'},
+  solarized:{bg:'#002b36',text:'#839496',kw:'#859900',str:'#2aa198',num:'#d33682',cm:'#586e75',fn:'#268bd2',op:'#859900',type:'#b58900',tag:'#268bd2',attr:'#2aa198',punct:'#839496'},
+  nord:{bg:'#2e3440',text:'#d8dee9',kw:'#81a1c1',str:'#a3be8c',num:'#b48ead',cm:'#616e88',fn:'#88c0d0',op:'#81a1c1',type:'#8fbcbb',tag:'#81a1c1',attr:'#8fbcbb',punct:'#d8dee9'},
+  one:{bg:'#282c34',text:'#abb2bf',kw:'#c678dd',str:'#98c379',num:'#d19a66',cm:'#5c6370',fn:'#61afef',op:'#c678dd',type:'#e5c07b',tag:'#e06c75',attr:'#d19a66',punct:'#abb2bf'}
+};
+
+const BGS={
+  gradient1:['#667eea','#764ba2'],gradient2:['#f093fb','#f5576c'],
+  gradient3:['#0052d4','#4364f7'],gradient4:['#0ba360','#3cba92'],
+  solid1:['#1a1a1a','#1a1a1a'],solid2:['#1a1a2e','#1a1a2e']
+};
+
+const KW={
+  js:['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','this','class','extends','super','import','export','from','default','async','await','try','catch','finally','throw','typeof','instanceof','in','of','yield','delete','void','with','debugger','static','get','set','null','undefined','true','false','NaN','Infinity'],
+  ts:['const','let','var','function','return','if','else','for','while','do','switch','case','break','continue','new','this','class','extends','super','import','export','from','default','async','await','try','catch','finally','throw','typeof','instanceof','in','of','yield','interface','type','enum','implements','namespace','abstract','as','keyof','readonly','never','unknown','any','void','null','undefined','true','false','public','private','protected','static'],
+  python:['def','class','return','if','elif','else','for','while','break','continue','import','from','as','try','except','finally','raise','with','lambda','yield','pass','assert','del','global','nonlocal','and','or','not','in','is','True','False','None','async','await','print','self'],
+  go:['func','package','import','return','if','else','for','range','switch','case','break','continue','go','select','chan','map','struct','interface','type','var','const','defer','fallthrough','default','nil','true','false','string','int','float64','bool','error','make','len','append','fmt'],
+  rust:['fn','let','mut','pub','struct','enum','impl','trait','return','if','else','for','while','loop','match','break','continue','use','mod','crate','self','super','where','as','in','ref','move','async','await','unsafe','dyn','const','static','type','true','false','Some','None','Ok','Err','Vec','String','println'],
+  java:['public','private','protected','class','interface','extends','implements','static','final','abstract','void','return','if','else','for','while','do','switch','case','break','continue','new','this','super','try','catch','finally','throw','throws','import','package','instanceof','boolean','int','long','double','float','String','null','true','false'],
+  html:['html','head','body','div','span','p','a','img','ul','ol','li','h1','h2','h3','h4','h5','h6','table','tr','td','th','form','input','button','select','option','textarea','script','style','link','meta','title','header','footer','nav','section','article','main','aside','strong','em','br','hr','class','id','src','href','type','value','placeholder'],
+  css:['color','background','margin','padding','border','display','position','flex','grid','width','height','font','text','align','justify','overflow','opacity','transform','transition','animation','box','shadow','cursor','content','none','auto','inherit','initial','relative','absolute','fixed','sticky','block','inline','hidden','solid','dashed','center','space','bold','italic'],
+  sql:['SELECT','FROM','WHERE','INSERT','INTO','VALUES','UPDATE','SET','DELETE','CREATE','TABLE','ALTER','DROP','INDEX','JOIN','LEFT','RIGHT','INNER','OUTER','ON','AND','OR','NOT','IN','IS','NULL','LIKE','ORDER','BY','GROUP','HAVING','LIMIT','OFFSET','AS','DISTINCT','COUNT','SUM','AVG','MAX','MIN','BETWEEN','EXISTS','UNION','PRIMARY','KEY','FOREIGN','REFERENCES','DEFAULT','AUTO_INCREMENT'],
+  shell:['echo','if','then','else','fi','for','do','done','while','case','esac','function','return','exit','local','export','source','alias','read','cd','ls','rm','cp','mv','mkdir','cat','grep','sed','awk','find','sort','uniq','wc','head','tail','chmod','chown','curl','wget','sudo','apt','yum','npm','git','docker','true','false'],
+  json:[],plain:[]
+};
+
+const FONT='13px "SF Mono",SFMono-Regular,Consolas,"Courier New",monospace';
+
+function tokenize(code,lang){
+  const tokens=[];
+  const kw=KW[lang]||[];
+  let i=0;
+  const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+  while(i<code.length){
+    // Whitespace
+    if(code[i]===' '||code[i]==='\t'){
+      let s=i;while(i<code.length&&(code[i]===' '||code[i]==='\t'))i++;
+      tokens.push({t:'ws',v:code.slice(s,i)});continue;
+    }
+    // Newline
+    if(code[i]==='\n'){tokens.push({t:'nl',v:'\n'});i++;continue;}
+    // Single-line comment
+    if(code[i]==='/'&&code[i+1]==='/'){
+      let s=i;while(i<code.length&&code[i]!=='\n')i++;
+      tokens.push({t:'cm',v:code.slice(s,i)});continue;
+    }
+    if((lang==='python'||lang==='shell')&&code[i]==='#'){
+      let s=i;while(i<code.length&&code[i]!=='\n')i++;
+      tokens.push({t:'cm',v:code.slice(s,i)});continue;
+    }
+    // Multi-line comment
+    if(code[i]==='/'&&code[i+1]==='*'){
+      let s=i;i+=2;while(i<code.length-1&&!(code[i]==='*'&&code[i+1]==='/'))i++;
+      i+=2;tokens.push({t:'cm',v:code.slice(s,i)});continue;
+    }
+    // Python triple string
+    if((lang==='python')&&(code.slice(i,i+3)==='"""'||code.slice(i,i+3)==="'''")){
+      const q=code.slice(i,i+3);let s=i;i+=3;
+      while(i<code.length-2&&code.slice(i,i+3)!==q)i++;
+      if(i<code.length)i+=3;
+      tokens.push({t:'str',v:code.slice(s,i)});continue;
+    }
+    // String
+    if(code[i]==='"'||code[i]==="'"||code[i]==='`'){
+      const q=code[i];let s=i;i++;
+      while(i<code.length&&code[i]!==q){if(code[i]==='\\')i++;i++;}
+      if(i<code.length)i++;
+      tokens.push({t:'str',v:code.slice(s,i)});continue;
+    }
+    // Number
+    if(/[0-9]/.test(code[i])||(code[i]==='.'&&i+1<code.length&&/[0-9]/.test(code[i+1]))){
+      let s=i;if(code[i]==='0'&&(code[i+1]==='x'||code[i+1]==='X')){i+=2;while(i<code.length&&/[0-9a-fA-F]/.test(code[i]))i++;}
+      else{while(i<code.length&&/[0-9.]/.test(code[i]))i++;}
+      tokens.push({t:'num',v:code.slice(s,i)});continue;
+    }
+    // Word
+    if(/[a-zA-Z_$@]/.test(code[i])){
+      let s=i;while(i<code.length&&/[a-zA-Z0-9_$@]/.test(code[i]))i++;
+      const w=code.slice(s,i);
+      if(kw.includes(w))tokens.push({t:'kw',v:w});
+      else if(i<code.length&&code[i]==='(')tokens.push({t:'fn',v:w});
+      else tokens.push({t:'id',v:w});
+      continue;
+    }
+    // Operators & punctuation
+    if(/[{}()\[\];:,.]/.test(code[i])){tokens.push({t:'punct',v:code[i]});i++;continue;}
+    if(/[+\-*/%=<>!&|^~?]/.test(code[i])){
+      let s=i;while(i<code.length&&/[+\-*/%=<>!&|^~?]/.test(code[i]))i++;
+      tokens.push({t:'op',v:code.slice(s,i)});continue;
+    }
+    // Decorator / annotation
+    if(code[i]==='@'){
+      let s=i;i++;while(i<code.length&&/[a-zA-Z0-9_]/.test(code[i]))i++;
+      tokens.push({t:'fn',v:code.slice(s,i)});continue;
+    }
+    // HTML tags
+    if(code[i]==='<'&&lang==='html'){
+      let s=i;while(i<code.length&&code[i]!=='>')i++;if(i<code.length)i++;
+      tokens.push({t:'tag',v:code.slice(s,i)});continue;
+    }
+    // Default
+    tokens.push({t:'id',v:code[i]});i++;
+  }
+  return tokens;
+}
+
+function render(){
+  const code=$('editor').value;
+  const theme=$('selTheme').value;
+  const bg=$('selBg').value;
+  const pad=parseInt($('selPad').value);
+  const title=$('txtTitle').value;
+  const lang=$('selLang').value;
+  const t=THEMES[theme];
+  const bgc=BGS[bg];
+
+  const lines=code.split('\n');
+  $('lineCount').textContent=lines.length+' lines';
+
+  const lineH=20;
+  const charW=7.8;
+  const numW=40;
+  const codePadX=16,codePadY=12;
+  const maxLen=Math.max(...lines.map(l=>l.length),20);
+  const lineNumW=String(lines.length).length*charW+16;
+
+  const codeW=Math.min(Math.max(maxLen*charW+lineNumW+codePadX*2,320),700);
+  const codeH=lines.length*lineH+codePadY*2;
+
+  const W=codeW+pad*2;
+  const H=codeH+pad*2+28; // +28 for title bar
+
+  const canvas=$('snap');
+  const DPR=2;
+  canvas.width=W*DPR;canvas.height=H*DPR;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(DPR,DPR);
+
+  // Background gradient
+  const grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,bgc[0]);grad.addColorStop(1,bgc[1]);
+  ctx.fillStyle=grad;
+  roundRect(ctx,0,0,W,H,12);ctx.fill();
+
+  // Code window
+  const wx=pad,wy=pad,ww=W-pad*2,wh=H-pad*2;
+  ctx.fillStyle=t.bg;
+  roundRect(ctx,wx,wy,ww,wh,8);ctx.fill();
+
+  // Title bar
+  ctx.fillStyle=darken(t.bg,.1);
+  roundRectTop(ctx,wx,wy,ww,26,8);ctx.fill();
+
+  // Dots
+  const dotY=wy+13;
+  [['#ff5f57',wx+16],['#febc2e',wx+32],['#28c840',wx+48]].forEach(([c,x])=>{
+    ctx.beginPath();ctx.arc(x,dotY,5,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();
+  });
+
+  // Title text
+  if(title){
+    ctx.fillStyle=t.cm;ctx.font='12px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText(title.slice(0,40),wx+ww/2,dotY+4);ctx.textAlign='left';
+  }
+
+  // Code
+  ctx.font=FONT;
+  const tokens=tokenize(code,lang);
+
+  let lineIdx=0,colX=wx+codePadX,codeY=wy+28+codePadY+lineH-4;
+
+  // Line numbers
+  for(let i=0;i<lines.length;i++){
+    const ny=wy+28+codePadY+lineH*(i+1)-4;
+    ctx.fillStyle=t.cm;
+    ctx.font=FONT;
+    ctx.textAlign='right';
+    ctx.fillText(String(i+1),wx+codePadX+lineNumW-8,ny);
+  }
+  ctx.textAlign='left';
+
+  // Tokens
+  for(const tok of tokens){
+    if(tok.t==='nl'){lineIdx++;colX=wx+codePadX+lineNumW;continue;}
+    if(tok.t==='ws'){colX+=tok.v.length*charW;continue;}
+
+    const colorMap={kw:t.kw,str:t.str,num:t.num,cm:t.cm,fn:t.fn,op:t.op,type:t.type,tag:t.tag,attr:t.attr,punct:t.punct,id:t.text};
+    ctx.fillStyle=colorMap[tok.t]||t.text;
+
+    const theY=wy+28+codePadY+lineH*(lineIdx+1)-4;
+    // For comments, handle line wrapping simply
+    if(tok.t==='cm'){
+      const text=tok.v;
+      for(let c=0;c<text.length;c++){
+        if(text[c]==='\n'){lineIdx++;colX=wx+codePadX+lineNumW;continue;}
+        ctx.fillText(text[c],colX,theY);
+        colX+=charW;
+      }
+    }else{
+      ctx.fillText(tok.v,colX,theY);
+      colX+=tok.v.length*charW;
+    }
+  }
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+
+function roundRectTop(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h);
+  ctx.lineTo(x,y+h);ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+
+function darken(hex,amt){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return '#'+[r,g,b].map(c=>Math.max(0,Math.round(c*(1-amt))).toString(16).padStart(2,'0')).join('');
+}
+
+$('editor').addEventListener('input',render);
+$('selLang').addEventListener('change',render);
+$('selTheme').addEventListener('change',render);
+$('selBg').addEventListener('change',render);
+$('selPad').addEventListener('change',render);
+$('txtTitle').addEventListener('input',render);
+
+$('btnExport').addEventListener('click',()=>{
+  const a=document.createElement('a');a.download='codesnap.png';
+  a.href=$('snap').toDataURL('image/png');a.click();
+});
+
+$('btnSample').addEventListener('click',()=>{
+  $('editor').value=`function fibonacci(n) {
+  if (n <= 1) return n;
+
+  let prev = 0, curr = 1;
+  for (let i = 2; i <= n; i++) {
+    const next = prev + curr;
+    prev = curr;
+    curr = next;
+  }
+
+  return curr;
+}
+
+// Generate first 10 Fibonacci numbers
+const results = Array.from(
+  { length: 10 },
+  (_, i) => ({ n: i, fib: fibonacci(i) })
+);
+
+console.log(results);`;
+  $('selLang').value='js';
+  $('txtTitle').value='fibonacci.js';
+  render();
+});
+
+// Tab key support
+$('editor').addEventListener('keydown',e=>{
+  if(e.key==='Tab'){
+    e.preventDefault();
+    const ta=$('editor');
+    const s=ta.selectionStart,en=ta.selectionEnd;
+    ta.value=ta.value.substring(0,s)+'  '+ta.value.substring(en);
+    ta.selectionStart=ta.selectionEnd=s+2;
+    render();
+  }
+});
+
+render();
+})();
+</script>
+</body>
+</html>
